@@ -1,0 +1,5 @@
+{
+    "comment": "This is an example dataset file",
+    "command": "mongoimport -d test -c example --file example.json",
+    "readme": "put your datasets file here"
+}
