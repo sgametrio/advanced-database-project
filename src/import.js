@@ -45,19 +45,38 @@ function importCategories(db) {
     })
 }
 
-function importVideos(db) {
-    let videos_coll = db.collection("youtube-videos-us")
+function importVideos(db, collection = "youtube-videos-us") {
+    let videos_coll = db.collection(collection)
     videos_coll.drop().then((result) => {
-        console.log("youtube-videos-us dropped")
-    }).catch((error) => console.log("youtube-videos-us already dropped"))
+        console.log(`${collection} dropped`)
+    }).catch((error) => console.log(`${collection} already dropped`))
     let time = new Time()
     time.start("import_videos")
     const videos_dataset_file = "USvideos.csv"
     return csv()
         .fromFile(`dataset/${videos_dataset_file}`)
         .then((jsonObj) => {
+            for (obj of jsonObj) {
+                obj.views = parseInt(obj.views)
+                obj.comment_count = parseInt(obj.comment_count)
+                obj.likes = parseInt(obj.likes)
+                obj.dislikes = parseInt(obj.dislikes)
+                delete obj.description
+                let tags_string = obj.tags
+                let tags = []
+                for (let tag of tags_string.split("|")) {
+                    // remove double quote at the beginning and at the end
+                    if (tag[0] === "\"")
+                        tag = tag.substring(1)
+                    if (tag[tag.length - 1] == "\"")
+                        tag = tag.substring(0, tag.length - 1)
+                    tags.push(tag)
+                }
+                obj.tags = tags
+
+            }
             return videos_coll.insertMany(jsonObj).then((result) => {
-                console.log(`Inserted ${result.insertedCount} categories: ${time.end("import_videos")}`)
+                console.log(`Inserted ${result.insertedCount} videos: ${time.end("import_videos")}`)
             }).catch((error) => console.log(error))
         }).catch((error) => console.log(error))
 }
@@ -74,9 +93,47 @@ mongodb.connect(url, function (err, client) {
         await importVideos(db)
     }
 
-    runQueries = (db) => {
-        // First 10 videos with more likes/dislikes
+    embedCategories = async (db) => {
+        let time = new Time()
+        time.start("import_embedded")
+        await importVideos(db, "youtube-videos-embedded-us")
+        let cursor_c = db.collection("youtube-categories-us").find({})
+        let categories = []
+        while(await cursor_c.hasNext()) {
+            const cat = await cursor_c.next()
+            categories.push(cat)
+        }
+        let videos = db.collection("youtube-videos-embedded-us")
+        let cursor_v = videos.find({})
+        while(await cursor_v.hasNext()) {
+            let vid = await cursor_v.next()
+            videos.updateOne(vid, { $set: { category: categories.find((element) => {
+                return element._id === vid.category_id
+            })}})
+        }
+        console.log(`Imported embedded categories into videos: ${time.end("import_embedded")}`)
+    }
 
+    runQueries = async (db) => {
+        let cursor, time
+        // First 10 videos with more views
+        time = new Time()
+        time.start("most_viewed_sort")
+        cursor = db.collection("youtube-videos-us").find({}).project({title: 1, views: 1}).sort({ views: -1 }).limit(10)
+        while (await cursor.hasNext()) {
+            let doc = await cursor.next()
+            console.log(doc)
+        }
+        console.log(time.end("most_viewed_sort"))
+
+        time.start("most_viewed_order_by")
+        cursor = db.collection("youtube-videos-us").find({}).project({title: 1, views: 1}).
+        addQueryModifier('$orderby', {views:-1}).limit(10)
+        while (await cursor.hasNext()) {
+            let doc = await cursor.next()
+            console.log(doc)
+        }
+        console.log(time.end("most_viewed_order_by"))
         // For each category, most viewed video
 
         // Videos with almost n comments
@@ -95,8 +152,11 @@ mongodb.connect(url, function (err, client) {
     }
     
     importCollections(db).then((response) => {
-
-        client.close()
+        embedCategories(db).then((response) => {
+            //runQueries(db).then((response) => {
+                client.close()
+            //})
+        })
     })
     
 });
