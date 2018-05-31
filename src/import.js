@@ -61,7 +61,7 @@ function importVideos(db, collection = "youtube-videos-us") {
                 obj.comment_count = parseInt(obj.comment_count)
                 obj.likes = parseInt(obj.likes)
                 obj.dislikes = parseInt(obj.dislikes)
-                delete obj.description
+                delete obj.description // si poteva fare anche con update({}, {$unset: {description: 1}}, {multi:true})
                 let tags_string = obj.tags
                 let tags = []
                 for (let tag of tags_string.split("|")) {
@@ -143,14 +143,6 @@ mongodb.connect(url, function (err, client) {
         // Categories by number of videos
     }
 
-    createIndexes = (db) => {
-        // comments
-        
-        // views
-
-        // likes,dislikes
-    }
-    
     importCollections(db).then((response) => {
         embedCategories(db).then((response) => {
             //runQueries(db).then((response) => {
