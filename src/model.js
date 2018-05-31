@@ -5,9 +5,6 @@ let videos_emb_c = db["youtube-videos-embedded-us"]
 let categories_emb_c = db["youtube-categories-embedded-us"]
 let categories_c = db["youtube-categories-us"]
 
-// Create descending index on views
-videos_c.createIndex({views: -1})
-videos_emb_c.createIndex({views: -1})
-
-// Create index on joining id
-videos_c.createIndex({category_id: 1})
+// Remove description field because it's heavy and useless for us
+//videos_c.update({}, { $unset: { "description": 1 }}, { multi: true })
+//videos_emb_c.update({}, { $unset: { "description": 1 }}, { multi: true })

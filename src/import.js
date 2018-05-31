@@ -61,7 +61,11 @@ function importVideos(db, collection = "youtube-videos-us") {
                 obj.comment_count = parseInt(obj.comment_count)
                 obj.likes = parseInt(obj.likes)
                 obj.dislikes = parseInt(obj.dislikes)
-                delete obj.description // si poteva fare anche con update({}, {$unset: {description: 1}}, {multi:true})
+                delete obj.description // si può fare anche con update({}, {$unset: {description: 1}}, {multi:true})
+                let tokens = obj.trending_date.split(".")
+                let date = tokens[2]+"-"+tokens[1]+"-"+tokens[0]
+                obj.trending_date = new Date(date)
+                obj.publish_time = new Date(obj.publish_time)
                 let tags_string = obj.tags
                 let tags = []
                 for (let tag of tags_string.split("|")) {
@@ -73,7 +77,6 @@ function importVideos(db, collection = "youtube-videos-us") {
                     tags.push(tag)
                 }
                 obj.tags = tags
-
             }
             return videos_coll.insertMany(jsonObj).then((result) => {
                 console.log(`Inserted ${result.insertedCount} videos: ${time.end("import_videos")}`)
