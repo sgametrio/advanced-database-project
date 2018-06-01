@@ -39,6 +39,9 @@ function importCategories(db) {
     for (let category of categories_file.items) {
         category._id = category.id
         delete category.id
+        category.title = category.snippet.title
+        delete category.snippet
+        delete category.kind
     }
     return categories_coll.insertMany(categories_file.items).then((result) => {
         console.log(`Inserted ${result.insertedCount} categories: ${time.end("import_categories")}`)
@@ -56,14 +59,19 @@ function importVideos(db, collection = "youtube-videos-us") {
     return csv()
         .fromFile(`dataset/${videos_dataset_file}`)
         .then((jsonObj) => {
-            for (obj of jsonObj) {
+            let dataset = jsonObj
+            for (let obj of dataset) {
                 obj.views = parseInt(obj.views)
                 obj.comment_count = parseInt(obj.comment_count)
                 obj.likes = parseInt(obj.likes)
                 obj.dislikes = parseInt(obj.dislikes)
                 delete obj.description // si può fare anche con update({}, {$unset: {description: 1}}, {multi:true})
+                delete obj.thumbnail_link
+                delete obj.comments_disabled
+                delete obj.ratings_disabled
+                delete obj.video_error_or_removed
                 let tokens = obj.trending_date.split(".")
-                let date = tokens[2]+"-"+tokens[1]+"-"+tokens[0]
+                let date = tokens[2]+"-"+tokens[0]+"-"+tokens[1]
                 obj.trending_date = new Date(date)
                 obj.publish_time = new Date(obj.publish_time)
                 let tags_string = obj.tags
@@ -78,7 +86,7 @@ function importVideos(db, collection = "youtube-videos-us") {
                 }
                 obj.tags = tags
             }
-            return videos_coll.insertMany(jsonObj).then((result) => {
+            return videos_coll.insertMany(dataset).then((result) => {
                 console.log(`Inserted ${result.insertedCount} videos: ${time.end("import_videos")}`)
             }).catch((error) => console.log(error))
         }).catch((error) => console.log(error))

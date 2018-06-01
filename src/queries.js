@@ -78,17 +78,16 @@ cursor = categories_c.explain("executionStats").aggregate([
 print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
 
 // Videos with almost n comments
-cursor = videos_c.find({comment_count: {$gt: 1000}}, {
+/*cursor = videos_c.find({comment_count: {$gt: 1000}}, {
     _id: 0,
     title: 1,
     comment_count: 1
-}).sort({comment_count: 1}).limit(10)
+}).sort({comment_count: 1}).limit(10)*/
 //printC(cursor)
 
 // Categories, with less than n videos
-
-print("Categories with videos avg comments > 10000: ")
-cursor = videos_emb_c.aggregate([
+print("Categories with videos avg comments > 10000 (emb): ")
+cursor = videos_emb_c.explain("executionStats").aggregate([
     {
         $group: {
             "_id": "$category.snippet.title",
@@ -101,10 +100,44 @@ cursor = videos_emb_c.aggregate([
         }
     }
 ])
-printC(cursor)
+print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
 
-print("Most tagged videos day by day and by category: ")
-cursor = videos_emb_c.aggregate([
+print("Categories with videos avg comments > 10000 (ref):")
+cursor = categories_c.explain("executionStats").aggregate([
+    {
+        $lookup: { 
+            from: "youtube-videos-us",
+            localField: "_id",
+            foreignField: "category_id",
+            as:"videos" 
+        }
+    },
+    {
+        $unwind: "$videos"
+    },
+    {
+        $group: {
+            "_id": "$title",
+            "avg_comments": { $avg: "$videos.comment_count"}
+        }
+    },
+    {
+        $match: {
+            "avg_comments": { $gt: 10000 }
+        }
+    },
+    {
+        $project: {
+            "_id": 0,
+            "category" : "$_id",
+            "avg_comments": 1
+        }
+    }
+])
+print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
+
+print("Most tagged videos day by day and by category (emb): ")
+cursor = videos_emb_c.explain("executionStats").aggregate([
     {
         $project: {
             "category": 1,
@@ -139,11 +172,46 @@ cursor = videos_emb_c.aggregate([
         }
     }
 ])
-printC(cursor)
+print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
+
+print("Most tagged videos day by day and by category (ref): ")
+cursor = categories_c.explain("executionStats").aggregate([
+    {
+        $lookup: { 
+            from: "youtube-videos-us",
+            localField: "_id",
+            foreignField: "category_id",
+            as:"videos" 
+        }
+    },
+    {
+        $unwind: "$videos"
+    },
+    {
+        $project: {
+            "title": 1,
+            "videos": {
+                "trending_date": 1,
+                "title": 1,
+                "tags_count": { $size: { "$ifNull": [ "$videos.tags", [] ] }}
+            }
+        }
+    },
+    {
+        $sort: { "videos.tags_count": -1 }
+    },
+    {
+        $group: {
+            "_id": { category: "$title", date: "$videos.trending_date" },
+            "most_tagged_video": { $first: "$videos" }
+        }
+    }
+])
+print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
 
 // Categories by number of videos
-print("Categories with less than 5000 videos (ascending): ")
-cursor = videos_emb_c.aggregate([
+print("Categories with less than 5000 videos (ascending) (emb): ")
+cursor = videos_emb_c.explain("executionStats").aggregate([
     {
         $group: {
             "_id": "$category.snippet.title",
@@ -161,6 +229,36 @@ cursor = videos_emb_c.aggregate([
         }
     }
 ])
-printC(cursor)
-//cursor = videos_c.find({}).sort({ views: -1 }).limit(10)
-//print(`executes in ${cursor.explain("executionStats").executionStats.executionTimeMillis} ms`)
+print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
+
+print("Categories with less than 5000 videos (ascending) (ref): ")
+cursor = categories_c.explain("executionStats").aggregate([
+    {
+        $lookup: { 
+            from: "youtube-videos-us",
+            localField: "_id",
+            foreignField: "category_id",
+            as:"videos" 
+        }
+    },
+    {
+        $unwind: "$videos"
+    },
+    {
+        $group: {
+            "_id": "$title",
+            "videos_count": { $sum: 1 }
+        }
+    },
+    {
+        $match: {
+            "videos_count": { $lt: 5000 }
+        }
+    },
+    {
+        $sort: {
+            "videos_count": 1
+        }
+    }
+])
+print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
