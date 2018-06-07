@@ -1,23 +1,3 @@
-// Import categories by doing a remodeling from:
-// categories: {
-//     items: [
-//         {
-//             "id": "wewe"
-//             ...
-//         },
-//          ...
-//     ]
-// }
-// 
-// to:
-
-// [
-//     {
-//         "_id": "wewe"
-//     },
-//     ...
-// ]
-
 const mongodb = require("mongodb").MongoClient
 const csv = require('csvtojson')
 let Time = require('time-diff');

@@ -39,7 +39,6 @@ cursor = videos_emb_c.explain("executionStats").aggregate([
         }
     }
 ])
-//printjson(cursor)
 print(`executes in ${cursor.stages[0].$cursor.executionStats.executionTimeMillis} ms`)
 
 print("For each category, most viewed video (reference):")
@@ -151,7 +150,7 @@ cursor = videos_emb_c.explain("executionStats").aggregate([
     },
     {
         $group: {
-            "_id": { category: "$category.snippet.title", date: "$trending_date"},
+            "_id": { category: "$category.snippet.title", date: "$trending_date" },
             "most_tagged_video": { $first: "$$ROOT" }
         }
     },
