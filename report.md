@@ -55,11 +55,115 @@ Un'altro esperimento è stato quello di fare embedding delle categorie all'inter
 
 ## Queries
 * #1: 10 video più visti
+```mongodb
+find({}).sort({ views: -1 }).limit(10)
+```   
 * #2: Per ogni categoria, il video più visto
+```mongodb
+aggregate([
+    {
+        $sort: { "views": -1 }
+    },
+    {
+        $group: {
+            "_id": { "category": "$category.snippet.title" },
+            "most_viewed_video": { $first: "$$ROOT" }
+        }
+    },
+    {
+        $project: {
+            "_id": 0,
+            "category" : "$_id.category",
+            "most_viewed_video": {
+                "title": 1,
+                "views": 1
+            }
+        }
+    }
+])
+```
 * #3: Categorie che hanno una media di commenti ai video maggiore di 10000
+```mongodb
+aggregate([
+    {
+        $group: {
+            "_id": "$category.snippet.title",
+            "avg_comments": { $avg: "$comment_count" }
+        }
+    },
+    {
+        $match: {
+            "avg_comments": { $gt: 10000 }
+        }
+    }
+])
+```      
 * #4: Per ogni categoria e ogni giorno, i video con più tag
+```mongodb    
+aggregate([{
+    $project: {
+        "category": 1,
+        "trending_date": 1,
+        "title": 1,
+        "tags_count": { $size: { "$ifNull": [ "$tags", [] ] }}
+    }
+},
+{
+    $sort: { "tags_count": -1}
+},
+{
+    $group: {
+        "_id": { category: "$category.snippet.title", date: "$trending_date" },
+        "most_tagged_video": { $first: "$$ROOT" }
+    }
+},
+{
+    $project: {
+        "_id": 0,
+        "category": "$_id.category",
+        "date": "$_id.date",
+        "most_tagged_video": {
+            "title": 1,
+            "tags_count": 1
+        }
+    }
+},
+{
+    $sort: {
+        "date": -1
+    }
+}]);
+```      
 * #5: Categorie con meno di 5000 video ordinati in modo ascendente
-
+```mongodb
+aggregate([
+    {
+        $group: {
+            "_id": "$category.snippet.title",
+            "videos_count": { $sum: 1 }
+        }
+    },
+    {
+        $match: {
+            "videos_count": { $lt: 5000 }
+        }
+    },
+    {
+        $sort: {
+            "videos_count": 1
+        }
+    }
+])
+```     
+La differenza sostanziale nelle query sulle collezioni collegati per reference è che il primo passo della `aggregate` è fare la `$lookup` delle categorie in questo modo:
+```mongodb
+$lookup: { 
+    from: "youtube-videos-us",
+    localField: "_id",
+    foreignField: "category_id",
+    as:"videos" 
+}
+```
 ## Confronto performance sulle queries
 Per migliorare le performance, sono stati costruiti degli indici. In particolare: 
 * indice ascendente su `category_id` dei video per una maggiore efficienza del `$lookup` sul reference delle categorie
@@ -68,7 +172,7 @@ Per migliorare le performance, sono stati costruiti degli indici. In particolare
 I risultati evidenziati sono su video collegati alle categorie per reference
 | # query | Senza indici | Con indici |
 | ------- | ------------ | ---------- |
-| 1       | 46ms         | 0ms        |
+| 1       | 46ms         | 1ms        |
 | 2       | 841ms        | 261ms      |
 | 3       | 769ms        | 201ms      |
 | 4       | 890ms        | 316ms      |
@@ -76,9 +180,9 @@ I risultati evidenziati sono su video collegati alle categorie per reference
 
 ## Confronto queries reference vs. embedding (senza indici)
 | # query | reference | embedding |
-| ------- | ------------ | ---------- |
-| 1       | 46ms         | 51ms        |
-| 2       | 841ms        | 261ms      |
-| 3       | 769ms        | 60ms      |
-| 4       | 890ms        | 250ms      |
-| 5       | 761ms        | 52ms      |
+| ------- | --------- | --------- |
+| 1       | 46ms      | 51ms      |
+| 2       | 841ms     | 261ms     |
+| 3       | 769ms     | 60ms      |
+| 4       | 890ms     | 250ms     |
+| 5       | 761ms     | 52ms      |
